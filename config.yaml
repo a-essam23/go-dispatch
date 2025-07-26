@@ -1,0 +1,35 @@
+# ====== SERVER LAYER ======
+server:
+  address: ":8080" # The address and port for the HTTP server to listen on.
+
+  auth: # The secret key for signing and validating JWTs. Should be an env variable in PROD
+    jwtSecret: "a-very-secret-key" # token for testing eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiJ0ZXN0aW5nMTIzIiwiaWF0IjoxNzUzNDgyMjA0LCJleHAiOjE3NTM0ODU4MDR9.v1lSlKp7eL9BZl5vUwZnTZzCLl0o6aObuo40tyoWDBQ
+
+  connectionLimit: # Maximum number of concurrent connections allowed per userID
+    maxPerUser: 3
+    # What to do when the limit is reached:
+    # "reject": Reject the new connection attempt
+    # "cycle":  Close the user's oldest connection and accept the new one
+    mode: "cycle"
+
+transport:
+  readTimeout: "60m" # The maximum duration for waiting for a message from a client before the connection is considered dead.
+
+# ====== ROUTER LAYER ======
+events:
+  echo:
+    actions:
+      - name: _notify_origin
+        params:
+          # The first parameter is the event name for the response.
+          - "echo_response"
+          # The second parameter is the payload, templated from the original message.
+          - "{.payload}"
+
+# The engine will assign a unique bitmap value to each.
+permissions:
+  - "kick"
+  - "ban"
+  - "grant_perms"
+  - "delete_message"
+  # Add any other custom permissions your application needs.
