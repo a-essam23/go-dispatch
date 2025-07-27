@@ -31,4 +31,15 @@ type Manager interface {
 	SetPermissions(userID, roomID string, perms Permission) error
 	UpdatePermissions(userID, roomID string, add, remove Permission) error
 	GetGrant(userID, roomID string) (*Grant, bool)
+
+	// --- Modifier store Management ---
+	GetModifierState(modifierName, userID, eventName string) (state *ModifierState, found bool)
+
+	// SetModifierState sets or updates the state data. This will often involve
+	// cancelling a previous cleanup timer and starting a new one.
+	SetModifierState(modifierName, userID, eventName string, state *ModifierState)
+
+	// DeleteModifierState removes a state entry. This is typically called by
+	// the background cleanup goroutine.
+	DeleteModifierState(modifierName, userID, eventName string)
 }

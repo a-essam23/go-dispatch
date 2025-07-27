@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"log/slog"
 	"strings"
 
@@ -9,7 +8,7 @@ import (
 )
 
 // Load reads configuration from a file and environment variables.
-func Load(logger *slog.Logger, fileName string, factoryProvider ActionFuncProvider) (*Config, error) {
+func Load(logger *slog.Logger, fileName string) (*Config, error) {
 	v := viper.New()
 
 	// 1. Set default values
@@ -26,7 +25,12 @@ func Load(logger *slog.Logger, fileName string, factoryProvider ActionFuncProvid
 	// 3. Set up environment variable handling
 	v.SetEnvPrefix("GODISPATCH")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv()
+
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return nil, err
+		}
+	}
 
 	// 4. Read the configuration file
 	if err := v.ReadInConfig(); err != nil {
@@ -48,12 +52,7 @@ func Load(logger *slog.Logger, fileName string, factoryProvider ActionFuncProvid
 			return nil, err
 		}
 	}
-	slog.Info("Permission registry loaded", "total_permissions", len(GetAllRegistered()))
+	logger.Info("Permission registry loaded", slog.Any("total_permissions", len(GetAllRegistered())))
 
-	// --- Compile Event Pipelines ---
-	if err := CompilePipelines(&cfg, factoryProvider); err != nil {
-		return nil, fmt.Errorf("configuration compilation failed: %w", err)
-	}
-	slog.Info("Event pipelines compiled", "total_pipelines", len(cfg.Pipelines))
 	return &cfg, nil
 }

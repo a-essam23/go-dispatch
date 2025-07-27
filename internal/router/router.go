@@ -16,10 +16,10 @@ import (
 type EventRouter struct {
 	logger       *slog.Logger
 	stateManager state.Manager
-	pipelines    map[string][]pipeline.Step
+	pipelines    map[string]*pipeline.CompiledPipeline
 }
 
-func NewEventRouter(logger *slog.Logger, stateManager state.Manager, pipelines map[string][]pipeline.Step) *EventRouter {
+func NewEventRouter(logger *slog.Logger, stateManager state.Manager, pipelines map[string]*pipeline.CompiledPipeline) *EventRouter {
 	return &EventRouter{
 		logger:       logger.With(slog.String("component", "event_router")),
 		stateManager: stateManager,
@@ -43,6 +43,7 @@ func (r *EventRouter) HandleMessage(ctx context.Context, connID uuid.UUID, msg [
 
 	// look up pre-compiled pipeline
 	pipe, ok := r.pipelines[clientMsg.Event]
+
 	if !ok {
 		r.logger.Warn("Recieved unknown event", slog.Any("event", clientMsg.Event), slog.Any("connID", connID))
 		return
@@ -70,6 +71,7 @@ func (r *EventRouter) HandleMessage(ctx context.Context, connID uuid.UUID, msg [
 	pctx := &pipeline.Cargo{
 		Logger:       r.logger.With("component", "pipeline"),
 		Ctx:          ctx,
+		EventName:    clientMsg.Event,
 		User:         originConn.User,
 		Connection:   originConn,
 		StateManager: r.stateManager,
@@ -77,15 +79,32 @@ func (r *EventRouter) HandleMessage(ctx context.Context, connID uuid.UUID, msg [
 		TargetID:     clientMsg.Target,
 		TargetObject: targetObj,
 	}
-	r.logger.Debug("Executing pipeline", slog.Any("event", clientMsg.Event), slog.Any("userID", pctx.User.ID))
-	for _, step := range pipe {
-		resolvedParams, err := r.resolveParams(pctx, step.Params)
+	r.logger.Debug("Executing modifier pipeline", "event", clientMsg.Event, "userID", pctx.User.ID)
+	for _, modStep := range pipe.Modifiers {
+		resolvedParams, err := r.resolveParams(pctx, modStep.Params)
+		if err != nil {
+			r.logger.Error("Failed to resolve params for modifier, halting pipeline", "event", clientMsg.Event, "error", err)
+			// TODO: Send error response to client
+			return
+		}
+
+		if err := modStep.Function(pctx, resolvedParams...); err != nil {
+			// A modifier failed validation. Log and halt everything.
+			r.logger.Warn("Modifier check failed, pipeline halted", "event", clientMsg.Event, "userID", pctx.User.ID, "error", err)
+			// TODO: Send error response to client
+			return
+		}
+	}
+
+	r.logger.Debug("Executing action pipeline", slog.Any("event", clientMsg.Event), slog.Any("userID", pctx.User.ID))
+	for _, anStep := range pipe.Actions {
+		resolvedParams, err := r.resolveParams(pctx, anStep.Params)
 		if err != nil {
 			r.logger.Error("Failed to resolve params, halting pipeline", "event", clientMsg.Event, "error", err)
 			break
 		}
 
-		if err := step.Function(pctx, resolvedParams...); err != nil {
+		if err := anStep.Function(pctx, resolvedParams...); err != nil {
 			r.logger.Error("Pipeline execution halted", "event", clientMsg.Event, "error", err)
 			break
 		}

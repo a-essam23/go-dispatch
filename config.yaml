@@ -2,9 +2,6 @@
 server:
   address: ":8080" # The address and port for the HTTP server to listen on.
 
-  auth: # The secret key for signing and validating JWTs. Should be an env variable in PROD
-    jwtSecret: "a-very-secret-key" # token for testing eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiJ0ZXN0aW5nMTIzIiwiaWF0IjoxNzUzNDgyMjA0LCJleHAiOjE3NTM0ODU4MDR9.v1lSlKp7eL9BZl5vUwZnTZzCLl0o6aObuo40tyoWDBQ
-
   connectionLimit: # Maximum number of concurrent connections allowed per userID
     maxPerUser: 3
     # What to do when the limit is reached:

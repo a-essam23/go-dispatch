@@ -12,8 +12,8 @@ type Config struct {
 	// raw representation from YAML (only used when loading)
 	Events map[string]EventConfig `mapstructure:"events"`
 	// compiled, ready-to-execute action pipelines (populated by the compiler)
-	Pipelines   map[string][]pipeline.Step `mapstructure:"-"`
-	Permissions []string                   `mapstructure:"permissions"`
+	Pipelines   map[string]*pipeline.CompiledPipeline `mapstructure:"-"`
+	Permissions []string                              `mapstructure:"permissions"`
 }
 
 type ServerConfig struct {
@@ -36,10 +36,11 @@ type TransportConfig struct {
 }
 
 type EventConfig struct {
-	Actions []ActionConfig `mapstructure:"actions"`
+	Actions   []VarConfig `mapstructure:"actions"`
+	Modifiers []VarConfig `mapstructure:"modifiers"`
 }
 
-type ActionConfig struct {
+type VarConfig struct {
 	Name   string   `mapstructure:"name"`
 	Params []string `mapstructure:"params"`
 }

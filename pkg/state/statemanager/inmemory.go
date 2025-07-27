@@ -20,6 +20,9 @@ type InMemoryManager struct {
 	userMu sync.RWMutex
 	roomMu sync.RWMutex
 
+	mods   map[string]map[string]map[string]*state.ModifierState
+	modsMu sync.Mutex
+
 	logger *slog.Logger
 }
 
@@ -28,6 +31,7 @@ func NewInMemoryManager(logger *slog.Logger) *InMemoryManager {
 		conns:  make(map[uuid.UUID]*state.Connection),
 		users:  make(map[string]*state.User),
 		rooms:  make(map[string]*state.Room),
+		mods:   make(map[string]map[string]map[string]*state.ModifierState),
 		logger: logger.With(slog.String("component", "state_manager_inmemory")),
 	}
 }
@@ -350,4 +354,59 @@ func (m *InMemoryManager) UpdatePermissions(userID, roomID string, add, remove s
 	grant.Permissions &^= remove
 
 	return nil
+}
+
+func (m *InMemoryManager) GetModifierState(modifierName, userID, eventName string) (*state.ModifierState, bool) {
+	m.modsMu.Lock()
+	defer m.modsMu.Unlock()
+
+	if m.mods[modifierName] == nil || m.mods[modifierName][userID] == nil {
+		return nil, false
+	}
+	data, found := m.mods[modifierName][userID][eventName]
+	return data, found
+}
+
+func (m *InMemoryManager) SetModifierState(modifierName, userID, eventName string, mstate *state.ModifierState) {
+	m.modsMu.Lock()
+	defer m.modsMu.Unlock()
+
+	// Ensure nested maps are initialized.
+	if m.mods[modifierName] == nil {
+		m.mods[modifierName] = make(map[string]map[string]*state.ModifierState)
+	}
+	if m.mods[modifierName][userID] == nil {
+		m.mods[modifierName][userID] = make(map[string]*state.ModifierState)
+	}
+
+	// If a timer already exists for this entry, stop it to prevent a leak.
+	if existingState, found := m.mods[modifierName][userID][eventName]; found && existingState.Timer != nil {
+		existingState.Timer.Stop()
+	}
+
+	m.mods[modifierName][userID][eventName] = mstate
+}
+func (m *InMemoryManager) DeleteModifierState(modifierName, userID, eventName string) {
+	m.modsMu.Lock()
+	defer m.modsMu.Unlock()
+
+	if m.mods[modifierName] == nil || m.mods[modifierName][userID] == nil {
+		return // Nothing to delete.
+	}
+
+	// Before deleting the entry, ensure any associated timer is stopped.
+	if state, found := m.mods[modifierName][userID][eventName]; found && state.Timer != nil {
+		state.Timer.Stop()
+	}
+
+	delete(m.mods[modifierName][userID], eventName)
+
+	// Clean up empty nested maps to prevent memory bloat.
+	if len(m.mods[modifierName][userID]) == 0 {
+		delete(m.mods[modifierName], userID)
+	}
+	if len(m.mods[modifierName]) == 0 {
+		delete(m.mods, modifierName)
+	}
+	m.logger.Debug("Deleted modifier state", "modifier", modifierName, "user", userID, "event", eventName)
 }

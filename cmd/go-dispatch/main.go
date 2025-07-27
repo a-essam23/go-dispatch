@@ -15,14 +15,23 @@ import (
 func main() {
 	logger := logging.New(logging.LevelDebug)
 	slog.SetDefault(logger)
-	engine.RegisterCoreActions()
-	logger.Info("Action engine initialized.")
 
-	cfg, err := config.Load(logger, "config", engine.GetActionFunc)
+	cfg, err := config.Load(logger, "config")
 	if err != nil {
 		logger.Error("Failed to load configuration", slog.Any("error", err))
 		os.Exit(1)
 	}
+	engine.RegisterCoreActions()
+	engine.RegisterCoreModifiers(logger, cfg.Server.Auth.JWTSecret)
+	logger.Info("Action and Modifier engines initialized.")
+
+	err = config.CompilePipelines(cfg, engine.GetActionFunc, engine.GetModifierFunc)
+	if err != nil {
+		logger.Error("Failed to compile pipelines", slog.Any("error", err))
+		os.Exit(1)
+	}
+	logger.Info("Event pipelines compiled", "total_pipelines", len(cfg.Pipelines))
+
 	ctx, stop := signal.NotifyContext(context.Background())
 	defer stop()
 

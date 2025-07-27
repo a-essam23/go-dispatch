@@ -36,3 +36,8 @@ type Grant struct {
 	Room        *Room
 	Permissions Permission // The user's permission bitmap for this specific room
 }
+
+type ModifierState struct {
+	Value any         // The actual state data (e.g., a counter, a timestamp)
+	Timer *time.Timer // The timer that will trigger cleanup for this state
+}
