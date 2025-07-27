@@ -123,8 +123,8 @@ You have now successfully connected to and interacted with your GoDispatch serve
 
 ## Next Steps
 
-- **Configuration:** Learn how to customize the server's behavior in the [Configuration Guide (CONFIG.md)](CONFIG.md).
-- **Architecture:** Understand the internal design by reading the [Architecture Guide (ARCHITECTURE.md)](ARCHITECTURE.md).
+- **Configuration:** Learn how to customize the server's behavior in the [Configuration Guide (CONFIG.md)](docs/config.md).
+- **Architecture:** Understand the internal design by reading the [Architecture Guide (ARCHITECTURE.md)](docs/architecture.md).
 
 ## Contributing
 Contributions are welcome! Please feel free to open an issue or submit a pull request.

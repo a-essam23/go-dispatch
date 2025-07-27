@@ -1,14 +1,14 @@
 {
   "main": {
-    "id": "f341925a71e69685",
+    "id": "941bca3f934bebfd",
     "type": "split",
     "children": [
       {
-        "id": "13ef517c507413c9",
+        "id": "463cb212d9fe8db4",
         "type": "tabs",
         "children": [
           {
-            "id": "e3e8e875f265d8fa",
+            "id": "418929517b3ad55a",
             "type": "leaf",
             "state": {
               "type": "empty",
@@ -23,15 +23,15 @@
     "direction": "vertical"
   },
   "left": {
-    "id": "07ab4125e417c859",
+    "id": "4d4475b18706feb3",
     "type": "split",
     "children": [
       {
-        "id": "721cbdbdba38c0e9",
+        "id": "c134fc66ae3fa2cb",
         "type": "tabs",
         "children": [
           {
-            "id": "b0d6480675f13ea7",
+            "id": "c5842fa4aa706325",
             "type": "leaf",
             "state": {
               "type": "file-explorer",
@@ -44,7 +44,7 @@
             }
           },
           {
-            "id": "6e736a70fd37b14e",
+            "id": "32004e8783e5c305",
             "type": "leaf",
             "state": {
               "type": "search",
@@ -61,7 +61,7 @@
             }
           },
           {
-            "id": "f9a96589cc56824c",
+            "id": "897c445cddd014fd",
             "type": "leaf",
             "state": {
               "type": "bookmarks",
@@ -77,15 +77,15 @@
     "width": 300
   },
   "right": {
-    "id": "5f7eb346c92f46ce",
+    "id": "eb97888397a302cd",
     "type": "split",
     "children": [
       {
-        "id": "a23ae2a73d5722ac",
+        "id": "8083a8ec30373cbb",
         "type": "tabs",
         "children": [
           {
-            "id": "7eebec80cb9f8d2c",
+            "id": "9ee8d65d49de44e3",
             "type": "leaf",
             "state": {
               "type": "backlink",
@@ -103,7 +103,7 @@
             }
           },
           {
-            "id": "3e0ba3ff73ad8d6f",
+            "id": "4425d0f83455716d",
             "type": "leaf",
             "state": {
               "type": "outgoing-link",
@@ -116,7 +116,7 @@
             }
           },
           {
-            "id": "622eef0ef7ba26af",
+            "id": "31027f91c713dd12",
             "type": "leaf",
             "state": {
               "type": "tag",
@@ -131,7 +131,7 @@
             }
           },
           {
-            "id": "6e14ca2b6e605b3c",
+            "id": "134aae490f854e57",
             "type": "leaf",
             "state": {
               "type": "outline",
@@ -161,9 +161,6 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "e3e8e875f265d8fa",
-  "lastOpenFiles": [
-    "README.md",
-    "docs/architecture.md"
-  ]
+  "active": "418929517b3ad55a",
+  "lastOpenFiles": []
 }
