@@ -1,5 +1,9 @@
 # GoDispatch: Configuration-Driven Real-Time WebSocket Engine
 
+![Project Status: Unstable](https://img.shields.io/badge/status-unstable-red.svg)
+
+> ⚠️ **Disclaimer:** This project is currently **unstable** and undergoing active development and testing.
+---
 
 GoDispatch is a high-performance WebSocket engine built in Go that replaces custom real-time backend code with a simple, declarative YAML configuration. Define your event logic, security rules, and message routing in `config.yaml`, and let the engine handle the rest.
 

@@ -1,14 +1,14 @@
 {
   "main": {
-    "id": "fbe7b199b8725987",
+    "id": "f341925a71e69685",
     "type": "split",
     "children": [
       {
-        "id": "56fb6632fe05caac",
+        "id": "a7a693c462878231",
         "type": "tabs",
         "children": [
           {
-            "id": "049e585dc81cc3c3",
+            "id": "48569cc6681a144e",
             "type": "leaf",
             "state": {
               "type": "empty",
@@ -23,15 +23,15 @@
     "direction": "vertical"
   },
   "left": {
-    "id": "28ad06965cffc4ae",
+    "id": "07ab4125e417c859",
     "type": "split",
     "children": [
       {
-        "id": "1428a6087a534925",
+        "id": "721cbdbdba38c0e9",
         "type": "tabs",
         "children": [
           {
-            "id": "59da92bfd7d231fe",
+            "id": "b0d6480675f13ea7",
             "type": "leaf",
             "state": {
               "type": "file-explorer",
@@ -44,7 +44,7 @@
             }
           },
           {
-            "id": "65416c29ffd7378b",
+            "id": "6e736a70fd37b14e",
             "type": "leaf",
             "state": {
               "type": "search",
@@ -61,7 +61,7 @@
             }
           },
           {
-            "id": "b438d3a2bfbd9e3f",
+            "id": "f9a96589cc56824c",
             "type": "leaf",
             "state": {
               "type": "bookmarks",
@@ -77,15 +77,15 @@
     "width": 300
   },
   "right": {
-    "id": "6d1036b48269f923",
+    "id": "5f7eb346c92f46ce",
     "type": "split",
     "children": [
       {
-        "id": "4e290227f1650cc1",
+        "id": "a23ae2a73d5722ac",
         "type": "tabs",
         "children": [
           {
-            "id": "afce27fc2a3113ab",
+            "id": "7eebec80cb9f8d2c",
             "type": "leaf",
             "state": {
               "type": "backlink",
@@ -103,7 +103,7 @@
             }
           },
           {
-            "id": "752f665e92e344df",
+            "id": "3e0ba3ff73ad8d6f",
             "type": "leaf",
             "state": {
               "type": "outgoing-link",
@@ -116,7 +116,7 @@
             }
           },
           {
-            "id": "f2f8a27b624dec84",
+            "id": "622eef0ef7ba26af",
             "type": "leaf",
             "state": {
               "type": "tag",
@@ -131,7 +131,7 @@
             }
           },
           {
-            "id": "c63552c5963109b3",
+            "id": "6e14ca2b6e605b3c",
             "type": "leaf",
             "state": {
               "type": "outline",
@@ -161,13 +161,9 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "049e585dc81cc3c3",
+  "active": "48569cc6681a144e",
   "lastOpenFiles": [
-    "testing.md",
-    "config.md",
-    "architecture.md",
-    "idea dump.md",
-    "overview.md",
-    "Welcome.md"
+    "README.md",
+    "docs/architecture.md"
   ]
 }
