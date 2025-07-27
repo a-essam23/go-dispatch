@@ -32,7 +32,7 @@ type App struct {
 
 func NewApp(logger *slog.Logger, rootContx context.Context, cfg *config.Config) *App {
 	stateManager := statemanager.NewInMemoryManager(logger)
-	eventRouter := router.NewEventRouter(logger, stateManager, cfg.Events)
+	eventRouter := router.NewEventRouter(logger, stateManager, cfg.Pipelines)
 
 	app := &App{
 		logger:       logger,

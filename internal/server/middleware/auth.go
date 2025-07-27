@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -55,7 +54,6 @@ func NewAuthMiddleware(logger *slog.Logger, jwtSecret string, pCompiler Permissi
 
 			// Extract claims and validate time-based fields
 			if claims, ok := token.Claims.(*AppClaims); ok {
-				fmt.Println(claims)
 				if claims.Subject == "" {
 					logger.Warn("Valid token missing 'sub' claim", "ip", reqMeta.IP)
 					http.Error(w, "Unauthorized", http.StatusUnauthorized)

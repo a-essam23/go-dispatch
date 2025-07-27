@@ -9,6 +9,7 @@ type Manager interface {
 	// --- Connection Lifecycle ---
 	RegisterConnection(conn *transport.Connection, ipAddr string) (*Connection, error)
 	DeregisterConnection(connID uuid.UUID) error
+	GetConnection(connID uuid.UUID) (*Connection, bool)
 	FindOldestUserConnection(userID string) (*Connection, bool)
 
 	// --- User Management ---
@@ -24,6 +25,7 @@ type Manager interface {
 	Join(userID, roomID string) (*Grant, error)
 	Leave(userID, roomID string) error
 	GetRoomMembers(roomID string) ([]*User, error)
+	FindRoom(roomID string) (*Room, bool)
 
 	// --- Permission Management ---
 	SetPermissions(userID, roomID string, perms Permission) error

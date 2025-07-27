@@ -1,12 +1,19 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/a-essam23/go-dispatch/pkg/pipeline"
+)
 
 type Config struct {
-	Server      ServerConfig
-	Transport   TransportConfig
-	Events      map[string]EventConfig `mapstructure:"events"`
-	Permissions []string               `mapstructure:"permissions"`
+	Server    ServerConfig
+	Transport TransportConfig
+	// raw representation from YAML (only used when loading)
+	Events map[string]EventConfig `mapstructure:"events"`
+	// compiled, ready-to-execute action pipelines (populated by the compiler)
+	Pipelines   map[string][]pipeline.Step `mapstructure:"-"`
+	Permissions []string                   `mapstructure:"permissions"`
 }
 
 type ServerConfig struct {

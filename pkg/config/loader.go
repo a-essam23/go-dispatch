@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -8,7 +9,7 @@ import (
 )
 
 // Load reads configuration from a file and environment variables.
-func Load(logger *slog.Logger, fileName string) (*Config, error) {
+func Load(logger *slog.Logger, fileName string, factoryProvider ActionFuncProvider) (*Config, error) {
 	v := viper.New()
 
 	// 1. Set default values
@@ -49,5 +50,10 @@ func Load(logger *slog.Logger, fileName string) (*Config, error) {
 	}
 	slog.Info("Permission registry loaded", "total_permissions", len(GetAllRegistered()))
 
+	// --- Compile Event Pipelines ---
+	if err := CompilePipelines(&cfg, factoryProvider); err != nil {
+		return nil, fmt.Errorf("configuration compilation failed: %w", err)
+	}
+	slog.Info("Event pipelines compiled", "total_pipelines", len(cfg.Pipelines))
 	return &cfg, nil
 }

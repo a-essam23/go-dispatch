@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 
@@ -36,8 +35,6 @@ func RequestMetadataMiddleware() Middleware {
 				ip = r.RemoteAddr // Fallback
 			}
 			reqMeta.IP = ip
-			fmt.Println(string(reqMeta.IP), r.RemoteAddr)
-			// Create a new context with our RequestContext struct
 			ctx := context.WithValue(r.Context(), reqMetaKey, reqMeta)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/a-essam23/go-dispatch/internal/engine"
 	"github.com/a-essam23/go-dispatch/internal/server"
 	"github.com/a-essam23/go-dispatch/pkg/config"
 	"github.com/a-essam23/go-dispatch/pkg/logging"
@@ -14,7 +15,10 @@ import (
 func main() {
 	logger := logging.New(logging.LevelDebug)
 	slog.SetDefault(logger)
-	cfg, err := config.Load(logger, "config")
+	engine.RegisterCoreActions()
+	logger.Info("Action engine initialized.")
+
+	cfg, err := config.Load(logger, "config", engine.GetActionFunc)
 	if err != nil {
 		logger.Error("Failed to load configuration", slog.Any("error", err))
 		os.Exit(1)

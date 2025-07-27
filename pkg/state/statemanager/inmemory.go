@@ -79,6 +79,13 @@ func (m *InMemoryManager) DeregisterConnection(connID uuid.UUID) error {
 	return nil
 }
 
+func (m *InMemoryManager) GetConnection(connID uuid.UUID) (*state.Connection, bool) {
+	m.connMu.RLock()
+	defer m.connMu.RUnlock()
+	conn, ok := m.conns[connID]
+	return conn, ok
+}
+
 func (m *InMemoryManager) GetUserConnectionCount(userID string) (int, error) {
 	m.userMu.RLock()
 	defer m.userMu.RUnlock()
@@ -267,7 +274,12 @@ func (m *InMemoryManager) Leave(userID string, roomID string) error {
 	m.logger.Debug("User left room", "userID", userID, "roomID", roomID)
 	return nil
 }
-
+func (m *InMemoryManager) FindRoom(roomID string) (*state.Room, bool) {
+	m.roomMu.RLock()
+	defer m.roomMu.RUnlock()
+	room, ok := m.rooms[roomID]
+	return room, ok
+}
 func (m *InMemoryManager) GetRoomMembers(roomID string) ([]*state.User, error) {
 	m.roomMu.RLock()
 	defer m.roomMu.RUnlock()
