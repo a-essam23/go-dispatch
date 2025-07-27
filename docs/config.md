@@ -1,143 +1,235 @@
-# System Configuration Guide
+# GoDispatch: Configuration Guide
 
-## I. Core Philosophy
+The `config.yaml` file is the heart of your GoDispatch server. It provides a declarative way to define your server's behavior, event logic, and security rules without writing any code.
 
-1.  **Configuration as Code:** GoDispatch is designed to be controlled by configuration, not by custom Go code. This file, `config.yaml`, defines your application's real-time behavior, including event handling, permissions, and server settings.
-2.  **Stateless Logic, Stateful Core:** The logic you define in this file is stateless. It operates on the live state of users and connections managed by the GoDispatch engine's in-memory core.
-3.  **The Room is the Universe:** All communication is scoped to a "room." A room can represent a group chat, a document collaboration session, or any logical grouping of users.
-4.  **The User Room is the Direct Channel:** In addition to custom rooms, every user automatically gets a private "user room" for direct messaging and personal notifications, enabling easy cross-device synchronization.
+This document serves as a complete reference for all available configuration options.
 
-## II. The `UserID` and Session Token
+## Table of Contents
 
-The `UserID` is the primary key for all user-related operations. It is provided by your backend via a standard **Session Token (JWT)** when a client connects.
+1.  [Server Layer](#1-server-layer)
+    -   `server.address`
+    -   `server.auth.jwtSecret`
+    -   `server.connectionLimit`
+2.  [Transport Layer](#2-transport-layer)
+    -   `transport.readTimeout`
+3.  [Router Layer](#3-router-layer)
+    -   `events`
+    -   `modifiers`
+    -   `actions`
+4.  [Permissions](#4-permissions)
+5.  [Templating Syntax](#5-templating-syntax)
+6.  [Full Example `config.yaml`](#6-full-example-configyaml)
 
-*   **Source:** The `sub` (Subject) claim of the JWT must contain the unique `UserID`.
-*   **Permissions:** An optional `perms` claim in the JWT, containing an array of permission names (strings), can be used to grant a user global permissions for their session.
-*   **Uniqueness:** Your application backend is responsible for ensuring `UserID`s are unique and for issuing valid JWTs. GoDispatch only enforces the JWT's validity.
+---
 
-## III. Configuration Structure
+## 1. Server Layer
 
-The `config.yaml` is divided into several main sections that control different layers of the engine.
+This section configures the HTTP server and connection-level security.
 
-### 1. Server Layer: Connection & Transport
+### `server.address`
 
-This section defines the behavior of the HTTP/WebSocket server itself.
+The address and port for the HTTP server to listen on.
+
+-   **Type:** `string`
+-   **Default:** `":8080"`
+-   **Example:** `address: ":8080"`
+
+### `server.auth.jwtSecret`
+
+The secret key used to validate the signature of JWTs for the initial connection handshake.
+
+> **Security Warning:** This value should **NEVER** be hardcoded in `config.yaml` for production. It **MUST** be provided via an environment variable.
+
+-   **Type:** `string`
+-   **Environment Variable:** `GODISPATCH_SERVER_AUTH_JWTSECRET`
+-   **Example (for local dev only):** `jwtSecret: "a-very-secret-key-from-env-file"`
+
+### `server.connectionLimit`
+
+Configures the maximum number of concurrent WebSocket connections allowed for a single `UserID`.
+
+-   `maxPerUser`: The maximum number of connections. A value of `0` or less means no limit.
+-   `mode`: The behavior when the limit is reached:
+    -   `"reject"`: Rejects the new connection attempt with an error.
+    -   `"cycle"`: Closes the user's oldest active connection and accepts the new one.
+
+-   **Example:**
+    ```yaml
+    connectionLimit:
+      maxPerUser: 3
+      mode: "cycle"
+    ```
+
+---
+
+## 2. Transport Layer
+
+This section configures low-level WebSocket connection settings.
+
+### `transport.readTimeout`
+
+The maximum duration the server will wait for a message from a client before considering the connection dead and closing it.
+
+-   **Type:** `duration string` (e.g., `60s`, `10m`, `1h`)
+-   **Default:** `"60m"`
+-   **Example:** `readTimeout: "30m"`
+
+---
+
+## 3. Router Layer
+
+This is where you define your application's core real-time logic.
+
+### `events`
+
+An `event` is a named entrypoint triggered by a client message. Each event consists of an optional `modifiers` chain and an `actions` pipeline.
+
+-   The key (e.g., `send_message`) is the `event` name that the client must send.
+-   The value is an object containing `modifiers` and/or `actions`.
+
+### `modifiers`
+
+**Modifiers are guards.** They are a list of validation steps that run *before* any actions. If any modifier fails, the entire pipeline for that event is halted immediately.
+
+-   **Type:** `list` of modifier objects.
+-   **Execution:** Modifiers run sequentially in the order they are defined.
+
+#### Available Modifiers:
+
+##### `secure`
+
+Validates a short-lived JWT sent within the event's payload. This is used to authorize specific, privileged actions that have been pre-approved by your backend.
+
+-   **Client Requirement:** The client must include a `token` field in the root of the JSON message.
+-   **Params:** None.
+-   **Example:**
+    ```yaml
+    modifiers:
+      - name: "secure"
+    ```
+
+##### `rate_limit`
+
+Restricts how frequently a single user can trigger a specific event. The rate limit is tracked per `UserID` and per `EventName`.
+
+-   **Params:**
+    -   `"count/unit"`: A single string parameter.
+        -   `count`: An integer.
+        -   `unit`: `s` (seconds), `m` (minutes), or `h` (hours).
+-   **Example:**
+    ```yaml
+    modifiers:
+      - name: "rate_limit"
+        params: ["10/m"] # Allow this event 10 times per minute per user.
+    ```
+
+### `actions`
+
+**Actions are verbs.** They are a sequence of functions that *do* things—send messages, log information, or change state. They only run if all modifiers pass.
+
+-   **Type:** `list` of action objects.
+-   **Execution:** Actions run sequentially in the order they are defined.
+
+#### Available Actions:
+
+##### `_log`
+
+Writes a message to the GoDispatch server's standard log output. Useful for debugging pipelines.
+
+-   **Params:** A single string message.
+-   **Example:** `params: ["User triggered the 'join_room' event."]`
+
+##### `_notify_room`
+
+Sends a new message to all connected members of a target room. The target room is specified by the `target` field in the client's original message.
+
+-   **Params:**
+    1.  `event_name` (string): The name of the new event to send to the clients in the room.
+    2.  `payload` (string): The payload for the new event. Often uses templating.
+-   **Example:** `params: ["new_message", "{.payload.message}"]`
+
+##### `_notify_origin`
+
+Sends a message back only to the specific client connection that triggered the event.
+
+-   **Params:**
+    1.  `event_name` (string): The name of the event to send back.
+    2.  `payload` (string): The payload for the event.
+-   **Example:** `params: ["join_room_success", "{\"status\":\"ok\"}"]`
+
+---
+
+## 4. Permissions
+
+A top-level list of custom, application-specific permission names. GoDispatch assigns a unique internal ID to each. These permissions can be included in a user's session JWT (`perms` claim) to grant them global capabilities.
+
+> **Note:** The current set of actions does not yet perform permission checks. This feature is for defining the permissions that will be used by future actions (e.g., `_join`, `_kick`).
+
+-   **Example:**
+    ```yaml
+    permissions:
+      - "kick_user"
+      - "delete_message"
+      - "view_admin_dashboard"
+    ```
+
+---
+
+## 5. Templating Syntax
+
+Action parameters can be made dynamic by using a simple templating syntax to pull data from the context of the incoming message.
+
+| Template                 | Description                                                                 | Example Use Case                            |
+| ------------------------ | --------------------------------------------------------------------------- | ------------------------------------------- |
+| `{.target}`              | The `target` field from the root of the client message.                     | Used implicitly by `_notify_room`.          |
+| `{.payload}`             | The entire JSON `payload` object, as a string.                              | Sending a complex object back to the client.|
+| `{.payload.<field>}`     | A specific field from the `payload`, using GJSON path syntax.               | `{.payload.message.text}`                   |
+| `{.user.id}`             | The `UserID` of the originating connection.                                 | Logging which user performed an action.     |
+| `{.connection.id}`       | The unique UUID of the originating connection.                              | For detailed debugging logs.                |
+| `{$token.<claim>}`       | A claim from a JWT validated by the `secure` modifier. **This is secure.** | `{$token.room_id}`, `{$token.grant_perms}`  |
+
+---
+
+## 6. Full Example `config.yaml`
 
 ```yaml
 # ====== SERVER LAYER ======
 server:
-  # The address and port for the HTTP server to listen on.
   address: ":8080"
-
-  # The secret key for signing and validating JWTs.
-  # This MUST be set via an environment variable in production (e.g., GODISPATCH_SERVER_AUTH_JWTSECRET).
-  auth:
-    jwtSecret: "a-very-secret-key"
-
-  # Configure limits on concurrent connections per UserID.
   connectionLimit:
-    maxPerUser: 3
-    # What to do when the limit is reached:
-    # "reject": Reject the new connection attempt.
-    # "cycle":  Close the user's oldest connection and accept the new one.
+    maxPerUser: 5
     mode: "cycle"
 
 transport:
-  # The maximum duration for waiting for a message from a client
-  # before the connection is considered dead.
-  readTimeout: "60m"
-```
+  readTimeout: "45m"
 
-### 2. Router Layer: Events & Actions
-
-This is where you define your application's core logic. An **Event** is a named entrypoint triggered by a client message. Each event is composed of an **Action Pipeline**—a sequence of built-in functions that execute in order.
-
-```yaml
 # ====== ROUTER LAYER ======
 events:
-  # Event triggered when a client wants to send a message to a group room.
-  send_message_to_room:
+  # A secure event to join a room, authorized by the backend.
+  join_private_room:
+    modifiers:
+      # This event requires a valid, short-lived JWT from the backend.
+      - name: "secure"
     actions:
-      # The target room ID is taken from the incoming message's `target` field.
-      - name: _notify_room
-        params: ["new_message", "{.payload.message}"] # This action implicitly sends to the `target` room.
+      # A future "_join" action would use the validated token data.
+      - name: "_log"
+        params: ["User {$token.sub} joining room {$token.room_id}"]
+      # Notify the user that their join was successful.
+      - name: "_notify_origin"
+        params: ["join_success", "{\"room\": \"{$token.room_id}\"}"]
 
-  # Event triggered when a client wants to send a direct message.
-  send_direct_message:
+  # A public message event with rate limiting.
+  send_public_message:
+    modifiers:
+      - name: "rate_limit"
+        params: ["20/m"] # 20 messages per minute
     actions:
-      # This works because a user's private room (e.g., "user:some-id") is treated
-      # just like any other room by the notification action.
-      - name: _notify_room
-        params: ["new_dm", "{.payload.message}"]
+      - name: "_notify_room"
+        params: ["new_public_message", "{.payload}"]
 
-  # A simple event for logging client-side analytics or debug info.
-  log_client_event:
-    actions:
-      - name: _log
-        params: ["Client analytics event received"]
-```
-
-### 3. Permissions
-
-This section allows you to define custom, application-specific permissions. GoDispatch will assign a unique bitmap value to each, allowing for efficient permission checks.
-
-```yaml
-# The engine will assign a unique bitmap value to each permission.
+# ====== PERMISSIONS ======
 permissions:
-  - "kick"
-  - "ban"
-  - "grant_perms"
+  - "kick_user"
+  - "ban_user"
   - "delete_message"
-  # Add any other custom permissions your application needs.
 ```
-These permissions can be included in a user's JWT `perms` claim to grant them global capabilities.
-
-## IV. Action Primitives & Templating
-
-**Actions** are the built-in functions you can use to build your pipelines.
-
-**Available Actions:**
-
-*   `_notify_room(event_name, payload)`: Sends a new message to all members of the room specified in the incoming event's `target` field.
-*   `_notify_origin(event_name, payload)`: Sends a message back only to the specific client connection that triggered the event.
-*   `_log(message)`: Writes a message to the GoDispatch server's standard log output. Useful for debugging pipelines.
-
-**Templating:**
-
-Action parameters are made dynamic using a simple templating syntax that pulls data from the context of the incoming message.
-
-*   `{.target}`: Accesses the top-level `target` field from the client's message. This is used implicitly by `_notify_room`.
-*   `{.payload}`: Accesses the entire JSON payload of the message as a string.
-*   `{.payload.<field>}`: Uses GJSON path syntax to access a specific field within the JSON payload (e.g., `{.payload.message.text}`).
-*   `{.user.id}`: Accesses the UserID of the originating connection.
-*   `{.connection.id}`: Accesses the unique UUID of the originating connection.
-
-## V. Example Flow: Sending a Direct Message
-
-This example shows how the system components work together.
-
-1.  **Client A** wants to send a message to **Client B**. Client A's application knows Client B's UserID is `user-b-id`.
-2.  Client A constructs and sends a WebSocket message to GoDispatch:
-    ```json
-    {
-      "target": "user:user-b-id",
-      "event": "send_direct_message",
-      "payload": {
-        "from": "user-a-id",
-        "message": "Hello!"
-      }
-    }
-    ```
-3.  GoDispatch receives the message.
-    a. The **Event Router** sees the event name is `send_direct_message` and looks up its action pipeline in the configuration.
-    b. The router finds one action: `_notify_room` with params `["new_dm", "{.payload.message}"]`.
-    c. The **Pipeline Engine** resolves the parameters. `{.payload.message}` is resolved to the string `"Hello!"`.
-    d. The `_notify_room` action is executed. It looks at the message's `target` (`user:user-b-id`) and finds all connections that belong to that room (in this case, all of Client B's connected devices).
-4.  GoDispatch sends a new message to all of Client B's connections:
-    ```json
-    {
-      "event": "new_dm",
-      "payload": "Hello!"
-    }
-    ```
-5.  Client B's application receives the `new_dm` event and displays the message.

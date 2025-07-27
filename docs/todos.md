@@ -1,2 +1,0 @@
-- research jwt signing methods
-- research update permissions and its bitwise operators
