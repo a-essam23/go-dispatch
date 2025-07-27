@@ -1,96 +1,143 @@
-# System Design Guideline
+# System Configuration Guide
 
 ## I. Core Philosophy
 
-1.  **Backend is the Policy Authority:** The application backend is the sole decider of business logic. It determines who can access what resources and under which conditions by issuing signed **Action Tickets**.
-2.  **GoDispatch is the Enforcement Engine:** GoDispatch's role is to act as a high-performance, real-time enforcement point. It validates tickets and executes the action pipelines defined in `config.yaml`.
-3.  **The Room is the Universe:** All communication, state, and permissions are scoped to a "room." This provides a unified and predictable model for all interactions.
-4.  **Configuration as Code:** All engine behavior is defined declaratively. No custom Go code is required to define application logic.
+1.  **Configuration as Code:** GoDispatch is designed to be controlled by configuration, not by custom Go code. This file, `config.yaml`, defines your application's real-time behavior, including event handling, permissions, and server settings.
+2.  **Stateless Logic, Stateful Core:** The logic you define in this file is stateless. It operates on the live state of users and connections managed by the GoDispatch engine's in-memory core.
+3.  **The Room is the Universe:** All communication is scoped to a "room." A room can represent a group chat, a document collaboration session, or any logical grouping of users.
+4.  **The User Room is the Direct Channel:** In addition to custom rooms, every user automatically gets a private "user room" for direct messaging and personal notifications, enabling easy cross-device synchronization.
 
-## II. The `UserID` as the Canonical Identifier
+## II. The `UserID` and Session Token
 
-The `UserID` is the primary key for all user-related operations within GoDispatch.
+The `UserID` is the primary key for all user-related operations. It is provided by your backend via a standard **Session Token (JWT)** when a client connects.
 
-*   **Source:** The `UserID` is provided by the backend via the primary **Session Token (JWT)** upon initial connection.
-*   **Uniqueness:** It is the developer's responsibility to ensure `UserID`s are unique.
-*   **Connection Grouping:** GoDispatch internally maps all active WebSocket connections to a single `UserID`. This allows actions targeting a `UserID` to be delivered to all of that user's connected devices (e.g., phone, laptop, tablet) simultaneously.
-*   **Reserved Namespaces:** While most room names are developer-defined, GoDispatch reserves certain prefixes for internal functionality. The primary reserved namespace is `user:`.
+*   **Source:** The `sub` (Subject) claim of the JWT must contain the unique `UserID`.
+*   **Permissions:** An optional `perms` claim in the JWT, containing an array of permission names (strings), can be used to grant a user global permissions for their session.
+*   **Uniqueness:** Your application backend is responsible for ensuring `UserID`s are unique and for issuing valid JWTs. GoDispatch only enforces the JWT's validity.
 
-## III. The User Room: A Fundamental Primitive
+## III. Configuration Structure
 
-Every authenticated user is automatically associated with a **User Room**, named `user:<UserID>`.
+The `config.yaml` is divided into several main sections that control different layers of the engine.
 
-*   **Purpose:** This room acts as the user's personal notification inbox and the direct target for user-to-user communication. It is the mechanism for presence tracking and cross-device synchronization.
-*   **Membership:** All connections authenticated with a given `UserID` are automatically members of the corresponding User Room. This is an internal engine behavior and does not require an explicit `join` event.
+### 1. Server Layer: Connection & Transport
 
-## IV. The Two-Token Authorization Model
-
-The system employs a two-token model to separate **identity** from **contextual authority**.
-
-*   **Session Token (The "ID Card"):** A long-lived JWT issued by the backend that validates a user's identity (`UserID`) and global attributes for a session.
-*   **Action Ticket (The "Boarding Pass"):** A short-lived, single-purpose, HMAC-signed payload issued by the backend to grant temporary, contextual authority for a privileged action (e.g., joining a room with specific permissions).
-
-## V. The Logic & Configuration Structure
-
-### 1. Events: The Entrypoint
-Events are the public API, triggered by clients. They are defined in `config.yaml`.
+This section defines the behavior of the HTTP/WebSocket server itself.
 
 ```yaml
-events:
-  kick_user:
-     This event is privileged and requires proof of backend authority.
-    modifiers: [ proof: "HMAC" ]
-    ayload: { ... } # Defines required user_id and room_id
-    actions:
-       The pipeline to execute if the ticket is valid.
-      - _revoke_permissions("all", {.payload.room_id}, {.payload.user_id})
-      - _leave({.payload.room_id}, {.payload.user_id})
+# ====== SERVER LAYER ======
+server:
+  # The address and port for the HTTP server to listen on.
+  address: ":8080"
+
+  # The secret key for signing and validating JWTs.
+  # This MUST be set via an environment variable in production (e.g., GODISPATCH_SERVER_AUTH_JWTSECRET).
+  auth:
+    jwtSecret: "a-very-secret-key"
+
+  # Configure limits on concurrent connections per UserID.
+  connectionLimit:
+    maxPerUser: 3
+    # What to do when the limit is reached:
+    # "reject": Reject the new connection attempt.
+    # "cycle":  Close the user's oldest connection and accept the new one.
+    mode: "cycle"
+
+transport:
+  # The maximum duration for waiting for a message from a client
+  # before the connection is considered dead.
+  readTimeout: "60m"
 ```
 
-### 2. Modifiers: The Security Guardrail
-Declarative constraints enforced *before* actions are executed.
-*   **`proof: "HMAC"`:** Mandates a valid, unexpired **Action Ticket**. The engine validates its signature, expiry, and context.
-*   **`rate: "count/duration"`:** Enforces per-connection rate limiting.
+### 2. Router Layer: Events & Actions
 
-### 3. Action Pipelines: The Logic
-A sequence of built-in primitives that define the event's logic.
+This is where you define your application's core logic. An **Event** is a named entrypoint triggered by a client message. Each event is composed of an **Action Pipeline**—a sequence of built-in functions that execute in order.
 
-**Built-in Action Primitives:**
+```yaml
+# ====== ROUTER LAYER ======
+events:
+  # Event triggered when a client wants to send a message to a group room.
+  send_message_to_room:
+    actions:
+      # The target room ID is taken from the incoming message's `target` field.
+      - name: _notify_room
+        params: ["new_message", "{.payload.message}"] # This action implicitly sends to the `target` room.
 
-*   **Permission Management:**
-    *   `_set_permissions(grants_bitmap, room_id, [user_id])`: Applies a full permission bitmap to a user in a room. The `user_id` is optional and defaults to the originating user.
-    *   `_add_permissions(permissions_list, room_id, [user_id])`: Adds specific permissions to a user's grant.
-    *   `_revoke_permissions(permissions_list | "all", room_id, [user_id])`: Revokes specific (or all) permissions from a user's grant.
+  # Event triggered when a client wants to send a direct message.
+  send_direct_message:
+    actions:
+      # This works because a user's private room (e.g., "user:some-id") is treated
+      # just like any other room by the notification action.
+      - name: _notify_room
+        params: ["new_dm", "{.payload.message}"]
 
-*   **Membership Management:**
-    *   `_join(room_id, [user_id])`: Adds a user (all their connections) to a room's membership list.
-    *   `_leave(room_id, [user_id])`: Removes a user (all their connections) from a room.
+  # A simple event for logging client-side analytics or debug info.
+  log_client_event:
+    actions:
+      - name: _log
+        params: ["Client analytics event received"]
+```
 
-*   **Communication:**
-    *   `_notify(room_id, event_name, payload)`: Sends a new event to all members of a target room.
-    *   `_notify_origin(event_name, payload)`: Sends an event back to the original connection that triggered the pipeline.
+### 3. Permissions
 
-*   **State & Logic:**
-    *   `_check_permissions(permissions_list)`: Halts the pipeline if the originating user does not have the required permissions for the current room context.
-    *   `_log(level, message)`: Writes to the engine's logs.
+This section allows you to define custom, application-specific permissions. GoDispatch will assign a unique bitmap value to each, allowing for efficient permission checks.
+
+```yaml
+# The engine will assign a unique bitmap value to each permission.
+permissions:
+  - "kick"
+  - "ban"
+  - "grant_perms"
+  - "delete_message"
+  # Add any other custom permissions your application needs.
+```
+These permissions can be included in a user's JWT `perms` claim to grant them global capabilities.
+
+## IV. Action Primitives & Templating
+
+**Actions** are the built-in functions you can use to build your pipelines.
+
+**Available Actions:**
+
+*   `_notify_room(event_name, payload)`: Sends a new message to all members of the room specified in the incoming event's `target` field.
+*   `_notify_origin(event_name, payload)`: Sends a message back only to the specific client connection that triggered the event.
+*   `_log(message)`: Writes a message to the GoDispatch server's standard log output. Useful for debugging pipelines.
 
 **Templating:**
-Action parameters are made dynamic via a simple templating syntax.
-*   `{.payload.field}`: Accesses data from the incoming event's payload.
-*   `{$ticket.field}`: Accesses data from the validated Action Ticket (e.g., `{$ticket.grants}`).
-*   `{$connection.user_id}`: Accesses the UserID of the originating connection.
 
-## VI. Example Flow: The Authoritative Kick
+Action parameters are made dynamic using a simple templating syntax that pulls data from the context of the incoming message.
 
-This demonstrates how the "Control Plane" is simply a well-secured event, not a separate system.
+*   `{.target}`: Accesses the top-level `target` field from the client's message. This is used implicitly by `_notify_room`.
+*   `{.payload}`: Accesses the entire JSON payload of the message as a string.
+*   `{.payload.<field>}`: Uses GJSON path syntax to access a specific field within the JSON payload (e.g., `{.payload.message.text}`).
+*   `{.user.id}`: Accesses the UserID of the originating connection.
+*   `{.connection.id}`: Accesses the unique UUID of the originating connection.
 
-1.  A room admin in an application clicks "Kick User B." This sends an HTTP request to the application backend.
-2.  The backend verifies the admin's authority through its own business logic.
-3.  The backend issues a short-lived **Action Ticket** authorizing the `kick_user` action for User B in that specific room.
-4.  The backend, acting as a privileged client, sends the `kick_user` event to GoDispatch, including the ticket in the `proof` field.
-5.  GoDispatch receives the event.
-    a. The `proof: "HMAC"` modifier validates the ticket is authentic and unexpired.
-    b. The action pipeline begins.
-    c. `_revoke_permissions("all", "group:dev-chat", "user-b-id")` is executed, clearing all of User B's permissions for that room from the live state.
-    d. `_leave("group:dev-chat", "user-b-id")` is executed, removing User B from the room's membership and terminating their connections to it.
-6.  The kick is complete and enforced at the engine level, securely and instantly.
+## V. Example Flow: Sending a Direct Message
+
+This example shows how the system components work together.
+
+1.  **Client A** wants to send a message to **Client B**. Client A's application knows Client B's UserID is `user-b-id`.
+2.  Client A constructs and sends a WebSocket message to GoDispatch:
+    ```json
+    {
+      "target": "user:user-b-id",
+      "event": "send_direct_message",
+      "payload": {
+        "from": "user-a-id",
+        "message": "Hello!"
+      }
+    }
+    ```
+3.  GoDispatch receives the message.
+    a. The **Event Router** sees the event name is `send_direct_message` and looks up its action pipeline in the configuration.
+    b. The router finds one action: `_notify_room` with params `["new_dm", "{.payload.message}"]`.
+    c. The **Pipeline Engine** resolves the parameters. `{.payload.message}` is resolved to the string `"Hello!"`.
+    d. The `_notify_room` action is executed. It looks at the message's `target` (`user:user-b-id`) and finds all connections that belong to that room (in this case, all of Client B's connected devices).
+4.  GoDispatch sends a new message to all of Client B's connections:
+    ```json
+    {
+      "event": "new_dm",
+      "payload": "Hello!"
+    }
+    ```
+5.  Client B's application receives the `new_dm` event and displays the message.
