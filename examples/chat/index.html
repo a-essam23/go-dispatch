@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Chat Room</title>
+        <style>
+            :root {
+                --primary-color: #007bff;
+                --background-color: #f8f9fa;
+                --text-color: #333;
+                --bubble-sender: #007bff;
+                --bubble-other: #e9ecef;
+                --bubble-text-sender: #fff;
+                --bubble-text-other: #333;
+                --error-color: #dc3545;
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: "Inter", sans-serif;
+                background-color: var(--background-color);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                color: var(--text-color);
+            }
+
+            .chat-container {
+                width: 100%;
+                max-width: 600px;
+                background: #fff;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                display: flex;
+                flex-direction: column;
+                height: 80vh;
+                margin: 20px;
+                display: none; /* Hidden initially */
+            }
+
+            .chat-header {
+                padding: 16px;
+                border-bottom: 1px solid #dee2e6;
+                background: #fff;
+                border-radius: 8px 8px 0 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .chat-header h1 {
+                font-size: 1.5rem;
+                font-weight: 600;
+            }
+
+            .chat-header .status {
+                font-size: 0.9rem;
+                color: #6c757d;
+            }
+
+            .chat-header .status.connected {
+                color: #28a745;
+            }
+
+            .chat-area {
+                flex: 1;
+                padding: 16px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .message {
+                max-width: 70%;
+                padding: 8px 12px;
+                border-radius: 12px;
+                font-size: 0.95rem;
+                line-height: 1.4;
+                animation: fadeIn 0.3s ease-in;
+            }
+
+            .message.sender {
+                background: var(--bubble-sender);
+                color: var(--bubble-text-sender);
+                align-self: flex-end;
+                border-bottom-right-radius: 4px;
+            }
+
+            .message.other {
+                background: var(--bubble-other);
+                color: var(--bubble-text-other);
+                align-self: flex-start;
+                border-bottom-left-radius: 4px;
+            }
+
+            .message .username {
+                font-weight: 600;
+                font-size: 0.85rem;
+                margin-bottom: 4px;
+            }
+
+            .message .timestamp {
+                font-size: 0.75rem;
+                opacity: 0.7;
+                margin-top: 4px;
+            }
+
+            .input-bar {
+                padding: 16px;
+                border-top: 1px solid #dee2e6;
+                display: flex;
+                gap: 8px;
+                background: #fff;
+                border-radius: 0 0 8px 8px;
+                position: sticky;
+                bottom: 0;
+            }
+
+            .input-bar input {
+                flex: 1;
+                padding: 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 1rem;
+                outline: none;
+            }
+
+            .input-bar input:focus {
+                border-color: var(--primary-color);
+                box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+            }
+
+            .input-bar button {
+                padding: 10px 16px;
+                background: var(--primary-color);
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 1rem;
+                transition: background 0.2s;
+            }
+
+            .input-bar button:hover {
+                background: #0056b3;
+            }
+
+            /* Modal Styles */
+            .modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            }
+
+            .modal-content {
+                background: #fff;
+                padding: 20px;
+                border-radius: 8px;
+                width: 100%;
+                max-width: 400px;
+                text-align: center;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            }
+
+            .modal-content h2 {
+                font-size: 1.5rem;
+                margin-bottom: 16px;
+            }
+
+            .modal-content input {
+                width: 100%;
+                padding: 10px;
+                margin-bottom: 16px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 1rem;
+            }
+
+            .modal-content input:focus {
+                border-color: var(--primary-color);
+                outline: none;
+            }
+
+            .modal-content button {
+                padding: 10px 16px;
+                background: var(--primary-color);
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 1rem;
+            }
+
+            .modal-content button:hover {
+                background: #0056b3;
+            }
+
+            .modal-content .error {
+                color: var(--error-color);
+                font-size: 0.9rem;
+                margin-top: 8px;
+                display: none;
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            @media (max-width: 600px) {
+                .chat-container {
+                    margin: 10px;
+                    height: 90vh;
+                }
+
+                .chat-header h1 {
+                    font-size: 1.2rem;
+                }
+
+                .message {
+                    max-width: 80%;
+                }
+
+                .modal-content {
+                    margin: 10px;
+                    max-width: 90%;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Modal for Username -->
+        <div class="modal" id="username-modal">
+            <div class="modal-content">
+                <h2>Enter Your Username</h2>
+                <input
+                    type="text"
+                    id="username-input"
+                    placeholder="e.g., user-123"
+                    aria-label="Username input"
+                />
+                <button onclick="connectWebSocket()">Join Chat</button>
+                <div class="error" id="connection-error">
+                    Failed to connect. Please try again.
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Room -->
+        <div class="chat-container" id="chat-container">
+            <div class="chat-header">
+                <h1>Chat Room: Lobby</h1>
+                <span class="status" id="connection-status">Connected</span>
+            </div>
+            <div class="chat-area" id="chat-area"></div>
+            <div class="input-bar">
+                <input
+                    type="text"
+                    id="message-input"
+                    placeholder="Type a message..."
+                    aria-label="Message input"
+                />
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.8.6/jsrsasign-all-min.js"></script>
+        <script src="app.js"></script>
+    </body>
+</html>
