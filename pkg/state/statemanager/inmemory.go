@@ -198,7 +198,7 @@ func (m *InMemoryManager) GetAllUsers() ([]*state.User, error) {
 
 // --- Room & Membership Management ---
 
-func (m *InMemoryManager) Join(userID, roomID string) (*state.Grant, error) {
+func (m *InMemoryManager) Join(userID, roomID string, grants *state.Grant) (*state.Grant, error) {
 	// Lock users and rooms to ensure atomic joining.
 	m.userMu.Lock()
 	defer m.userMu.Unlock()
@@ -225,11 +225,10 @@ func (m *InMemoryManager) Join(userID, roomID string) (*state.Grant, error) {
 		m.rooms[roomID] = room
 	}
 
-	// Create the Grant, which represents the User-Room relationship.
+	//TODO assign grants if attached.
 	grant := &state.Grant{
-		User: user,
-		Room: room,
-		// By default, new joins have no permissions. They must be granted explicitly.
+		// User: user,
+		Room:        room,
 		Permissions: 0,
 	}
 

@@ -32,7 +32,7 @@ type Room struct {
 
 // represents the relationship between a User and a Room, holding the permissions.
 type Grant struct {
-	User        *User
+	// User        *User
 	Room        *Room
 	Permissions Permission // The user's permission bitmap for this specific room
 }

@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "13ef517c507413c9",
+        "id": "7520af807d71759f",
         "type": "tabs",
         "children": [
           {
-            "id": "e3e8e875f265d8fa",
+            "id": "179d25a0ab5baf99",
             "type": "leaf",
             "state": {
               "type": "empty",
@@ -74,7 +74,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 200
   },
   "right": {
     "id": "5f7eb346c92f46ce",
@@ -161,8 +161,10 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "e3e8e875f265d8fa",
+  "active": "179d25a0ab5baf99",
   "lastOpenFiles": [
+    "docs/testing.md",
+    "docs/todos.md",
     "README.md",
     "docs/architecture.md"
   ]

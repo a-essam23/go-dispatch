@@ -13,15 +13,31 @@ transport:
   readTimeout: "60m" # The maximum duration for waiting for a message from a client before the connection is considered dead.
 
 # ====== ROUTER LAYER ======
+
 events:
   join_room:
     actions:
+      - name: "_join"
+        params: ["{$user.id}", "{$target.id}"]
       - name: "_notify_origin"
-        params: ["join_success", '{"room": "{payload.target}", "status": "ok"}']
+        params: ["join_success", '{"room": "{$target.id}", "status": "ok"}']
       - name: "_notify_room"
-        params: ["user_joined", '{"user": "{.user.id}", "room": "{.target}"}']
+        params:
+          [
+            "user_joined",
+            '{"user": {"id":"{$user.id}", "name": "{.payload.name}"}}',
+          ]
       - name: "_log"
-        params: ["User {.user.id} joined room {.target}"]
+        params: ["User {$user.id} joined room {$target.id}"]
+
+  leave_room:
+    actions:
+      - name: "_leave"
+        params: ["{$user.id}", "{$target.id}"]
+      - name: "_notify_room"
+        params: ["user_left", '{"user": "{$user.id}", "room": "{$target.id}"}']
+      - name: "_log"
+        params: ["User {$user.id} left room {$target.id}"]
   send_message:
     modifiers:
       - name: "rate_limit"
@@ -31,9 +47,9 @@ events:
         params:
           [
             "new_message",
-            '{"user": "{.user.id}", "message": "{.payload.message}"}',
+            '{"user": "{$user.id}", "message": "{.payload.message}"}',
           ]
       - name: "_log"
-        params: ["User {.user.id} sent message to room {.target}"]
+        params: ["User {$user.id} sent message to room {$target.id}"]
 
 permissions:

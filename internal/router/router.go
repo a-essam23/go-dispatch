@@ -3,39 +3,43 @@ package router
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 
+	"github.com/a-essam23/go-dispatch/internal/engine"
 	"github.com/a-essam23/go-dispatch/pkg/pipeline"
 	"github.com/a-essam23/go-dispatch/pkg/state"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 )
 
+var templateRegex = regexp.MustCompile(`{(\$|\.)([a-zA-Z0-9_.-]+)}`)
+
 type EventRouter struct {
 	logger       *slog.Logger
 	stateManager state.Manager
 	pipelines    map[string]*pipeline.CompiledPipeline
+	engine       *engine.Registry
 }
 
-func NewEventRouter(logger *slog.Logger, stateManager state.Manager, pipelines map[string]*pipeline.CompiledPipeline) *EventRouter {
+func NewEventRouter(logger *slog.Logger, stateManager state.Manager, pipelines map[string]*pipeline.CompiledPipeline, reg *engine.Registry) *EventRouter {
 	return &EventRouter{
 		logger:       logger.With(slog.String("component", "event_router")),
 		stateManager: stateManager,
 		pipelines:    pipelines,
+		engine:       reg,
 	}
 }
-
 func (r *EventRouter) HandleMessage(ctx context.Context, connID uuid.UUID, msg []byte) {
 	var clientMsg ClientMessage
 	if err := json.Unmarshal(msg, &clientMsg); err != nil {
 		r.logger.Warn("Failed to unmarshal client message", slog.Any("connID", connID), slog.Any("error", err))
-		// return an error back to the client here.
 		return
 	}
 
-	// ensure a target is specified.
 	if clientMsg.Target == "" {
 		r.logger.Warn("Client message missing required 'target' field", "connID", connID)
 		return
@@ -111,42 +115,133 @@ func (r *EventRouter) HandleMessage(ctx context.Context, connID uuid.UUID, msg [
 	}
 }
 
-/*
-Just-In-Time Template Resolver.
-Its job is to take the raw template strings from a pipeline step (e.g., "{.user.id}")
-and replace them with concrete values from the current request's Cargo.
-*/
+// constructs the Cargo object for a given message.
+func (r *EventRouter) buildPipelineCargo(ctx context.Context, connID uuid.UUID, clientMsg *ClientMessage) (*pipeline.Cargo, error) {
+	originConn, found := r.stateManager.GetConnection(connID)
+	if !found || originConn.User == nil {
+		return nil, errors.New("state for originating connection/user not found")
+	}
+
+	var targetObj any
+	if strings.HasPrefix(clientMsg.Target, "user:") {
+		targetUser, found := r.stateManager.FindUser(strings.TrimPrefix(clientMsg.Target, "user:"))
+		if found {
+			targetObj = targetUser
+		}
+	} else {
+		targetRoom, found := r.stateManager.FindRoom(clientMsg.Target)
+		r.logger.Info("targetroom", targetRoom, found)
+		if found {
+			targetObj = targetRoom
+		}
+	}
+
+	return &pipeline.Cargo{
+		Logger:       r.logger.With("component", "pipeline", "userID", originConn.User.ID),
+		Ctx:          ctx,
+		EventName:    clientMsg.Event,
+		User:         originConn.User,
+		Connection:   originConn,
+		StateManager: r.stateManager,
+		Payload:      clientMsg.Payload,
+		TargetID:     clientMsg.Target,
+		TargetObject: targetObj,
+	}, nil
+}
+
+// runs the full modifier and action chain for a given context.
+func (r *EventRouter) executePipeline(pctx *pipeline.Cargo) {
+	pipe, ok := r.pipelines[pctx.EventName]
+	if !ok {
+		r.logger.Warn("Received unknown event", "event", pctx.EventName)
+		return
+	}
+
+	// --- MODIFIER EXECUTION LOOP ---
+	for _, modStep := range pipe.Modifiers {
+		resolvedParams, err := r.resolveParams(pctx, modStep.Params)
+		if err != nil {
+			pctx.Logger.Error("Failed to resolve params for modifier, halting pipeline", "event", pctx.EventName, "error", err)
+			return
+		}
+		if err := modStep.Function(pctx, resolvedParams...); err != nil {
+			pctx.Logger.Warn("Modifier check failed, pipeline halted", "event", pctx.EventName, "error", err)
+			return
+		}
+	}
+
+	// --- ACTION EXECUTION LOOP ---
+	for _, actionStep := range pipe.Actions {
+		resolvedParams, err := r.resolveParams(pctx, actionStep.Params)
+		if err != nil {
+			pctx.Logger.Error("Failed to resolve params for action, halting pipeline", "event", pctx.EventName, "error", err)
+			return
+		}
+		if err := actionStep.Function(pctx, resolvedParams...); err != nil {
+			pctx.Logger.Error("Action execution failed, pipeline halted", "event", pctx.EventName, "error", err)
+			return
+		}
+	}
+}
+
 func (r *EventRouter) resolveParams(pctx *pipeline.Cargo, templates []string) ([]string, error) {
 	resolved := make([]string, len(templates))
 
 	for i, tpl := range templates {
-		if !strings.HasPrefix(tpl, "{.") || !strings.HasSuffix(tpl, "}") {
-			resolved[i] = tpl
-			continue
-		}
-
-		path := strings.Trim(tpl, "{.}")
-
-		switch {
-		case path == "payload":
-			resolved[i] = string(pctx.Payload)
-		case strings.HasPrefix(path, "payload."):
-			subPath := strings.TrimPrefix(path, "payload.")
-			value := gjson.Get(string(pctx.Payload), subPath)
-			if !value.Exists() {
-				return nil, fmt.Errorf("template path '%s' not found in payload", path)
+		var resolveErr error
+		interpolated := templateRegex.ReplaceAllStringFunc(tpl, func(match string) string {
+			if resolveErr != nil {
+				return ""
 			}
-			resolved[i] = value.String()
-		case path == "user.id":
-			resolved[i] = pctx.User.ID
-		case path == "connection.id":
-			resolved[i] = pctx.Connection.ID.String()
-		case path == "target":
-			// `{.target}` now resolves to the top-level target ID from the client message.
-			resolved[i] = pctx.TargetID
-		default:
-			return nil, fmt.Errorf("unrecognized template path '%s'", path)
+
+			submatches := templateRegex.FindStringSubmatch(match)
+			prefix := submatches[1]
+			path := submatches[2]
+			var replacement string
+			var err error
+
+			switch prefix {
+			case ".": // {.payload.path}
+				if path == "payload" {
+					replacement = string(pctx.Payload)
+				} else {
+					subPath := strings.TrimPrefix(path, "payload.")
+					value := gjson.Get(string(pctx.Payload), subPath)
+					if !value.Exists() {
+						err = fmt.Errorf("path '%.*s' not found in payload", 40, subPath)
+					}
+					replacement = value.String()
+				}
+			case "$": // {$param.var}
+				var resolver engine.ResolverFunc
+				var ok bool
+
+				// if strings.HasPrefix(path, "token.") {
+				// 	claimKey := strings.TrimPrefix(path, "token.")
+				// 	resolver = engine.GetTokenClaimResolver(claimKey)
+				// } else {
+				resolver, ok = r.engine.GetParamResolver(path)
+				if !ok {
+					// This should be caught by the compiler, but we check again for safety.
+					err = fmt.Errorf("unrecognized context variable '%s'", path)
+				}
+				// }
+				if err == nil {
+					replacement, err = resolver(pctx)
+				}
+			}
+
+			if err != nil {
+				resolveErr = err
+				return ""
+			}
+			return replacement
+		})
+
+		if resolveErr != nil {
+			return nil, resolveErr
 		}
+		resolved[i] = interpolated
 	}
 	return resolved, nil
 }

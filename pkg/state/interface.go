@@ -22,7 +22,7 @@ type Manager interface {
 
 	// --- Room & Membership Management ---
 	// adds a user to a room, creating the room if it doesn't exist.
-	Join(userID, roomID string) (*Grant, error)
+	Join(userID, roomID string, grants *Grant) (*Grant, error)
 	Leave(userID, roomID string) error
 	GetRoomMembers(roomID string) ([]*User, error)
 	FindRoom(roomID string) (*Room, bool)

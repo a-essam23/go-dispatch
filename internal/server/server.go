@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/a-essam23/go-dispatch/internal/engine"
 	"github.com/a-essam23/go-dispatch/internal/router"
 	"github.com/a-essam23/go-dispatch/internal/server/middleware"
 	"github.com/a-essam23/go-dispatch/pkg/config"
@@ -31,9 +32,9 @@ type App struct {
 	ctx context.Context
 }
 
-func NewApp(logger *slog.Logger, rootContx context.Context, cfg *config.Config) *App {
+func NewApp(logger *slog.Logger, rootContx context.Context, cfg *config.Config, eng *engine.Registry) *App {
 	stateManager := statemanager.NewInMemoryManager(logger)
-	eventRouter := router.NewEventRouter(logger, stateManager, cfg.Pipelines)
+	eventRouter := router.NewEventRouter(logger, stateManager, cfg.Pipelines, eng)
 
 	app := &App{
 		logger:       logger,

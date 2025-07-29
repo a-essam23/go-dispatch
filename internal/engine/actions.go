@@ -18,6 +18,35 @@ type ClientResponse struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
+// TODO: add grants here
+func actionJoinRoom(pctx *pipeline.Cargo, params ...string) error {
+	if len(params) != 2 {
+		return errors.New("_join requires 2 parameters: [userid, roomid]")
+	}
+	userID := params[0]
+	roomID := params[1]
+	_, err := pctx.StateManager.Join(userID, roomID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to join user '%s' to room '%s': %w", userID, roomID, err)
+	}
+	pctx.Logger.Info("User joined room", slog.Any("userID", userID), slog.Any("roomID", roomID))
+	return nil
+}
+func actionLeaveRoom(pctx *pipeline.Cargo, params ...string) error {
+	if len(params) != 2 {
+		return errors.New("_leave requires 2 parameters: [userid, roomid]")
+	}
+	userID := params[0]
+	roomID := params[1]
+	err := pctx.StateManager.Leave(userID, roomID)
+	if err != nil {
+		return fmt.Errorf("failed to leave user '%s' from room '%s': %w", userID, roomID, err)
+	}
+	pctx.Logger.Info("User left room", slog.Any("userID", userID), slog.Any("roomID", roomID))
+	return nil
+
+}
+
 func actionLog(pctx *pipeline.Cargo, params ...string) error {
 	if len(params) != 1 {
 		return errors.New("_log requires exactly 1 parameter: [message]")

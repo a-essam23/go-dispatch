@@ -15,17 +15,16 @@ import (
 func main() {
 	logger := logging.New(logging.LevelDebug)
 	slog.SetDefault(logger)
-
+	eng := engine.New(logger)
 	cfg, err := config.Load(logger, "config")
 	if err != nil {
 		logger.Error("Failed to load configuration", slog.Any("error", err))
 		os.Exit(1)
 	}
-	engine.RegisterCoreActions()
-	engine.RegisterCoreModifiers(logger, cfg.Server.Auth.JWTSecret)
-	logger.Info("Action and Modifier engines initialized.")
-
-	err = config.CompilePipelines(cfg, engine.GetActionFunc, engine.GetModifierFunc)
+	eng.RegisterCore(&engine.RegisterCoreOptions{
+		JWTsecret: cfg.Server.Auth.JWTSecret,
+	})
+	err = config.CompilePipelines(cfg, eng)
 	if err != nil {
 		logger.Error("Failed to compile pipelines", slog.Any("error", err))
 		os.Exit(1)
@@ -35,7 +34,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background())
 	defer stop()
 
-	app := server.NewApp(logger, ctx, cfg)
+	app := server.NewApp(logger, ctx, cfg, eng)
 	if err := app.Run(); err != nil {
 		logger.Error("Application run failed", slog.Any("error", err))
 		os.Exit(1)

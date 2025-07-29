@@ -1,4 +1,4 @@
-package statemanager
+package statemanager_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/a-essam23/go-dispatch/pkg/state"
+	"github.com/a-essam23/go-dispatch/pkg/state/statemanager"
 	"github.com/a-essam23/go-dispatch/pkg/transport"
 )
 
@@ -21,8 +22,8 @@ func newTestLogger() *slog.Logger {
 	return slog.New(handler)
 }
 
-func newTestManager() *InMemoryManager {
-	return NewInMemoryManager(newTestLogger())
+func newTestManager() *statemanager.InMemoryManager {
+	return statemanager.NewInMemoryManager(newTestLogger())
 }
 
 // CORRECTED HELPER FUNCTION
@@ -145,11 +146,11 @@ func TestRoomMembership(t *testing.T) {
 	m.AssociateUser(conn2.ID(), userID2, 0)
 
 	// Join
-	_, err := m.Join(userID1, roomID)
+	_, err := m.Join(userID1, roomID, nil)
 	if err != nil {
 		t.Fatalf("User1 failed to join room: %v", err)
 	}
-	_, err = m.Join(userID2, roomID)
+	_, err = m.Join(userID2, roomID, nil)
 	if err != nil {
 		t.Fatalf("User2 failed to join room: %v", err)
 	}
