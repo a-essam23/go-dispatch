@@ -8,6 +8,8 @@ require github.com/coder/websocket v1.8.13
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.3
+	github.com/joho/godotenv v1.5.1
+	github.com/rs/cors v1.11.1
 	github.com/spf13/viper v1.20.1
 	github.com/tidwall/gjson v1.18.0
 )

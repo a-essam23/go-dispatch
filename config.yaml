@@ -14,21 +14,26 @@ transport:
 
 # ====== ROUTER LAYER ======
 events:
-  send_message_to_room:
+  join_room:
     actions:
-      # The target is now part of the message protocol, so we use `{.target}`.
-      - name: _notify_room
-        params: ["new_message", "{.payload.message}"] # This action implicitly uses the target from the Cargo
+      - name: "_notify_origin"
+        params: ["join_success", '{"room": "{payload.target}", "status": "ok"}']
+      - name: "_notify_room"
+        params: ["user_joined", '{"user": "{.user.id}", "room": "{.target}"}']
+      - name: "_log"
+        params: ["User {.user.id} joined room {.target}"]
+  send_message:
+    modifiers:
+      - name: "rate_limit"
+        params: ["10/m"]
+    actions:
+      - name: "_notify_room"
+        params:
+          [
+            "new_message",
+            '{"user": "{.user.id}", "message": "{.payload.message}"}',
+          ]
+      - name: "_log"
+        params: ["User {.user.id} sent message to room {.target}"]
 
-  send_direct_message:
-    actions:
-      # This works exactly the same way, because a user is just another room.
-      - name: _notify_room
-        params: ["new_dm", "{.payload.message}"]
-# The engine will assign a unique bitmap value to each.
 permissions:
-  - "kick"
-  - "ban"
-  - "grant_perms"
-  - "delete_message"
-  # Add any other custom permissions your application needs.

@@ -4,11 +4,16 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
 // Load reads configuration from a file and environment variables.
 func Load(logger *slog.Logger, fileName string) (*Config, error) {
+	err := godotenv.Load()
+	if err != nil {
+		panic("No .env file found.")
+	}
 	v := viper.New()
 
 	// 1. Set default values
@@ -25,6 +30,7 @@ func Load(logger *slog.Logger, fileName string) (*Config, error) {
 	// 3. Set up environment variable handling
 	v.SetEnvPrefix("GODISPATCH")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {

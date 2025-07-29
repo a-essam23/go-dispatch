@@ -1,9 +1,9 @@
 package middleware
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/a-essam23/go-dispatch/pkg/state"
 	"github.com/golang-jwt/jwt/v5"
@@ -29,15 +29,25 @@ func NewAuthMiddleware(logger *slog.Logger, jwtSecret string, pCompiler Permissi
 			}
 
 			// Extract and validate the Authorization header
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-				logger.Warn("Authorization header missing or invalid", "ip", reqMeta.IP)
+			var tokenString string
+			fmt.Println(r.Cookies())
+			cookie, err := r.Cookie("session-token")
+			if err != nil {
+				logger.Warn("No cookie attached to request", "ip", reqMeta.IP)
+				http.Error(w, "Missing token", http.StatusUnauthorized)
+				return
+			}
+			tokenString = cookie.Value
+
+			if tokenString == "" {
+				logger.Warn("JWT token missing in request", "ip", reqMeta.IP)
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
-
+			logger.Info(jwtSecret)
+			logger.Info(tokenString)
 			// Parse and validate the JWT token with HMAC signing
-			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+			// tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 			token, err := jwt.ParseWithClaims(tokenString, &AppClaims{}, func(token *jwt.Token) (any, error) {
 				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, jwt.ErrSignatureInvalid

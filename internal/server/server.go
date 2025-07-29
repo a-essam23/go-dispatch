@@ -17,6 +17,7 @@ import (
 	"github.com/a-essam23/go-dispatch/pkg/transport"
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
+	"github.com/rs/cors"
 )
 
 type App struct {
@@ -41,7 +42,6 @@ func NewApp(logger *slog.Logger, rootContx context.Context, cfg *config.Config) 
 		config:       cfg,
 		ctx:          rootContx,
 	}
-
 	mux := http.NewServeMux()
 	upgradeHandler := http.HandlerFunc(app.upgradeHandler)
 	connCounter := middleware.UserConnectionCounter(stateManager.GetUserConnectionCount)
@@ -55,19 +55,23 @@ func NewApp(logger *slog.Logger, rootContx context.Context, cfg *config.Config) 
 	}
 
 	permCompiler := middleware.PermissionCompiler(config.CompilePermissions)
-	mux.Handle("/ws",
-		middleware.Chain(upgradeHandler,
-			middleware.RequestMetadataMiddleware(),
-			middleware.NewRequestLogger(app.logger),
-			middleware.NewConnectionLimiter(
-				logger,
-				connCounter,
-				connCycler,
-				app.config.Server.ConnectionLimit,
-			),
-			middleware.NewAuthMiddleware(logger, app.config.Server.Auth.JWTSecret, permCompiler),
-		),
-	)
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowCredentials: true,
+	})
+
+	handler := middleware.Chain(upgradeHandler,
+		middleware.RequestMetadataMiddleware(),
+		middleware.NewRequestLogger(app.logger),
+		middleware.NewAuthMiddleware(logger, app.config.Server.Auth.JWTSecret, permCompiler),
+		middleware.NewConnectionLimiter(
+			logger,
+			connCounter,
+			connCycler,
+			app.config.Server.ConnectionLimit,
+		))
+
+	mux.Handle("/ws", c.Handler(handler))
 
 	app.http = &http.Server{Addr: app.config.Server.Address, Handler: mux, BaseContext: func(l net.Listener) context.Context {
 		return app.ctx
